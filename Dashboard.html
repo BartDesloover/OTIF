@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Data Warehouse & Discrepancy Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: A multi-section, single-page dashboard. The structure is designed for a logical, top-down exploration of the data warehouse concept. It starts with a high-level overview (The Flow), then dives into the core problem (Discrepancies), presents the solution (The Data Model), and finally shows the outcome (KPIs & Analysis). This task-oriented flow is more intuitive for a user than the linear structure of the report. Navigation is handled by a sticky header, allowing users to jump to any section. Interactions include toggling between inbound/outbound views and hovering over charts for details, making the data exploration engaging and self-directed. -->
+    <!-- Visualization & Content Choices: 
+        - Inventory Flow: Goal: Explain the complex multi-system process. Method: A custom HTML/CSS diagram. Interaction: Buttons to toggle between inbound and outbound flows. Justification: A static diagram is clearer than a complex chart for showing a linear process with distinct stages and systems. It simplifies a core concept from the report.
+        - Discrepancy Analysis: Goal: Compare expected vs. actual quantities. Method: Bar Chart (Chart.js). Interaction: Hover tooltips show precise numbers. Justification: Bar charts are ideal for direct comparison, immediately highlighting the "variance" which is the central theme of this section.
+        - Star Schema: Goal: Explain the data model structure. Method: HTML/CSS diagram. Interaction: None needed. Justification: A visual representation of the fact and dimension tables is more comprehensible than text alone. It directly visualizes the model proposed in the report.
+        - KPIs: Goal: Show performance metrics. Method: Gauge-like numbers and simple bar charts (Chart.js). Interaction: Hover tooltips. Justification: Large numbers provide at-a-glance status, while bar charts offer quick comparisons for accuracy metrics.
+        - CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #fdfdfc;
+            color: #333;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        .nav-link {
+            transition: color 0.3s, border-bottom-color 0.3s;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: #a56a44;
+            border-bottom-color: #a56a44;
+        }
+        .flow-diagram-box {
+            border: 2px solid #e2d8d2;
+            background-color: #f9f6f4;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .flow-diagram-box:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .arrow {
+            color: #c4b5a8;
+        }
+        .kpi-card {
+            background-color: #f9f6f4;
+            border: 1px solid #e2d8d2;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        .kpi-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #8c5a3b;
+        }
+        .kpi-label {
+            font-size: 1rem;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="text-2xl font-bold text-gray-800">
+                <span class="text-[#a56a44]">DWH</span> Explorer
+            </div>
+            <div class="hidden md:flex items-center space-x-8">
+                <a href="#flow" class="nav-link text-gray-600 border-b-2 border-transparent pb-1">The Flow</a>
+                <a href="#discrepancy" class="nav-link text-gray-600 border-b-2 border-transparent pb-1">Discrepancies</a>
+                <a href="#model" class="nav-link text-gray-600 border-b-2 border-transparent pb-1">Data Model</a>
+                <a href="#analysis" class="nav-link text-gray-600 border-b-2 border-transparent pb-1">KPI Analysis</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+
+        <section id="intro" class="text-center mb-20">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-gray-800 mb-4">End-to-End Inventory Visibility</h1>
+            <p class="max-w-3xl mx-auto text-lg text-gray-600">
+                An interactive exploration of the proposed data warehouse model. This dashboard translates the technical report into a clear, visual guide for tracking stock positions and analyzing discrepancies across ERP, WMS, and ASRS systems.
+            </p>
+        </section>
+
+        <section id="flow" class="mb-20 scroll-mt-24">
+            <h2 class="text-3xl font-bold text-center mb-4 text-gray-800">Tracing the Inventory Flow</h2>
+            <p class="text-center text-gray-600 max-w-2xl mx-auto mb-10">
+                This section visualizes the journey of inventory through your key systems. The data warehouse captures data at each transition point to create a complete picture. Use the buttons to toggle between the inbound (receiving from suppliers) and outbound (shipping to customers) processes.
+            </p>
+            <div class="flex justify-center mb-8 space-x-4">
+                <button id="showInbound" class="bg-[#a56a44] text-white px-6 py-2 rounded-full font-semibold shadow-md hover:bg-[#8c5a3b] transition-colors">Inbound Flow</button>
+                <button id="showOutbound" class="bg-gray-200 text-gray-700 px-6 py-2 rounded-full font-semibold shadow-md hover:bg-gray-300 transition-colors">Outbound Flow</button>
+            </div>
+
+            <div id="inboundFlow" class="space-y-4">
+                <div class="grid md:grid-cols-5 items-center gap-4 text-center">
+                    <div class="flow-diagram-box p-4 rounded-lg">
+                        <div class="text-sm font-semibold text-gray-500">SYSTEM: ERP (UFO)</div>
+                        <div class="text-lg font-bold mt-1">Purchase Order</div>
+                        <div class="text-xs text-gray-500 mt-1">Ordered: 1000 units</div>
+                    </div>
+                    <div class="arrow text-4xl font-light hidden md:block">→</div>
+                    <div class="flow-diagram-box p-4 rounded-lg">
+                        <div class="text-sm font-semibold text-gray-500">SYSTEM: ERP (UFO)</div>
+                        <div class="text-lg font-bold mt-1">Goods Receipt</div>
+                        <div class="text-xs text-gray-500 mt-1">Received: 995 units</div>
+                    </div>
+                    <div class="arrow text-4xl font-light hidden md:block">→</div>
+                    <div class="flow-diagram-box p-4 rounded-lg">
+                        <div class="text-sm font-semibold text-gray-500">SYSTEM: WMS (Dynaman)</div>
+                        <div class="text-lg font-bold mt-1">Warehouse Processing</div>
+                        <div class="text-xs text-gray-500 mt-1">OK: 990, NOK: 5</div>
+                    </div>
+                </div>
+                 <div class="grid md:grid-cols-5 items-center gap-4 text-center">
+                    <div class="col-span-3"></div>
+                    <div class="arrow text-4xl font-light hidden md:block">→</div>
+                     <div class="flow-diagram-box p-4 rounded-lg">
+                        <div class="text-sm font-semibold text-gray-500">SYSTEM: ASRS (TGW)</div>
+                        <div class="text-lg font-bold mt-1">Put-Away & Storage</div>
+                        <div class="text-xs text-gray-500 mt-1">Stored: 990 units</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="outboundFlow" class="hidden space-y-4">
+                <div class="grid md:grid-cols-5 items-center gap-4 text-center">
+                    <div class="flow-diagram-box p-4 rounded-lg">
+                        <div class="text-sm font-semibold text-gray-500">SYSTEM: ERP (UFO)</div>
+                        <div class="text-lg font-bold mt-1">Sales Order</div>
+                        <div class="text-xs text-gray-500 mt-1">Ordered: 50 units</div>
+                    </div>
+                    <div class="arrow text-4xl font-light hidden md:block">→</div>
+                    <div class="flow-diagram-box p-4 rounded-lg">
+                        <div class="text-sm font-semibold text-gray-500">SYSTEM: ASRS/WMS</div>
+                        <div class="text-lg font-bold mt-1">Picking</div>
+                        <div class="text-xs text-gray-500 mt-1">Picked: 50 units</div>
+                    </div>
+                    <div class="arrow text-4xl font-light hidden md:block">→</div>
+                    <div class="flow-diagram-box p-4 rounded-lg">
+                        <div class="text-sm font-semibold text-gray-500">SYSTEM: WMS (Dynaman)</div>
+                        <div class="text-lg font-bold mt-1">Packing</div>
+                        <div class="text-xs text-gray-500 mt-1">Packed: 49 units</div>
+                    </div>
+                </div>
+                 <div class="grid md:grid-cols-5 items-center gap-4 text-center">
+                    <div class="col-span-3"></div>
+                    <div class="arrow text-4xl font-light hidden md:block">→</div>
+                     <div class="flow-diagram-box p-4 rounded-lg">
+                        <div class="text-sm font-semibold text-gray-500">SYSTEM: ERP/WMS</div>
+                        <div class="text-lg font-bold mt-1">Shipping</div>
+                        <div class="text-xs text-gray-500 mt-1">Shipped: 49 units</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="discrepancy" class="mb-20 scroll-mt-24">
+            <h2 class="text-3xl font-bold text-center mb-4 text-gray-800">Visualizing Quantity Discrepancies</h2>
+            <p class="text-center text-gray-600 max-w-2xl mx-auto mb-10">
+                The primary goal of the data warehouse is to highlight where quantities do not match. This chart compares expected vs. actual quantities at critical stages. The variance is where value is lost or unaccounted for, signaling a need for investigation.
+            </p>
+            <div class="bg-white p-4 sm:p-8 rounded-xl shadow-lg border border-gray-100">
+                <div class="chart-container">
+                    <canvas id="discrepancyChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section id="model" class="mb-20 scroll-mt-24">
+            <h2 class="text-3xl font-bold text-center mb-4 text-gray-800">The Data Warehouse Model: A Star Schema</h2>
+            <p class="text-center text-gray-600 max-w-2xl mx-auto mb-10">
+                At the heart of the solution is a star schema. This design features a central `Fact_Inventory_Movement` table containing all quantitative measures (the "facts"). It's linked to multiple dimension tables that provide descriptive context (who, what, where, when, why), making the data easy to analyze.
+            </p>
+            <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 flex flex-col lg:flex-row items-center justify-center gap-8">
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="flow-diagram-box p-3 rounded-lg text-center">Dim_Date</div>
+                    <div class="flow-diagram-box p-3 rounded-lg text-center">Dim_Product</div>
+                    <div class="flow-diagram-box p-3 rounded-lg text-center">Dim_Location</div>
+                    <div class="flow-diagram-box p-3 rounded-lg text-center">Dim_PO</div>
+                    <div class="flow-diagram-box p-3 rounded-lg text-center">Dim_SO</div>
+                    <div class="flow-diagram-box p-3 rounded-lg text-center">Dim_Employee</div>
+                    <div class="flow-diagram-box p-3 rounded-lg text-center">Dim_System</div>
+                    <div class="flow-diagram-box p-3 rounded-lg text-center">Dim_Status</div>
+                    <div class="flow-diagram-box p-3 rounded-lg text-center">Dim_Reason</div>
+                </div>
+                <div class="text-5xl text-gray-300 mx-8 hidden lg:block">↔</div>
+                <div class="text-5xl text-gray-300 my-4 lg:hidden">↕</div>
+                <div class="bg-[#a56a44] text-white p-8 rounded-lg text-center shadow-2xl">
+                    <h3 class="text-2xl font-bold">Fact_Inventory_Movement</h3>
+                    <p class="mt-2 text-sm text-yellow-100">Contains all quantitative measures like Ordered, Received, Picked, Packed, Shipped quantities.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="analysis" class="scroll-mt-24">
+            <h2 class="text-3xl font-bold text-center mb-4 text-gray-800">KPIs for Discrepancy Analysis</h2>
+            <p class="text-center text-gray-600 max-w-2xl mx-auto mb-10">
+                The data warehouse enables the calculation of key performance indicators (KPIs) to monitor inventory health. These metrics provide a clear, measurable view of operational performance and highlight areas that require immediate attention.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <div class="kpi-card">
+                    <div class="kpi-value" id="inventoryAccuracyValue">98.5%</div>
+                    <div class="kpi-label">Overall Inventory Accuracy</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value" id="pickingAccuracyValue">97.2%</div>
+                    <div class="kpi-label">Picking Accuracy</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value" id="orderAccuracyValue">99.1%</div>
+                    <div class="kpi-label">Order Accuracy</div>
+                </div>
+            </div>
+            <div class="bg-white p-4 sm:p-8 rounded-xl shadow-lg border border-gray-100">
+                <h3 class="text-xl font-bold text-center mb-4 text-gray-700">Accuracy by Process Stage</h3>
+                 <div class="chart-container" style="height: 300px; max-height: 350px;">
+                    <canvas id="accuracyByStageChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+    </main>
+    
+    <footer class="bg-gray-800 text-white mt-20">
+        <div class="container mx-auto px-6 py-4 text-center">
+            <p>&copy; 2024 Data Warehouse Model Explorer. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const inboundFlow = document.getElementById('inboundFlow');
+            const outboundFlow = document.getElementById('outboundFlow');
+            const showInboundBtn = document.getElementById('showInbound');
+            const showOutboundBtn = document.getElementById('showOutbound');
+
+            showInboundBtn.addEventListener('click', () => {
+                inboundFlow.classList.remove('hidden');
+                outboundFlow.classList.add('hidden');
+                showInboundBtn.classList.add('bg-[#a56a44]', 'text-white');
+                showInboundBtn.classList.remove('bg-gray-200', 'text-gray-700');
+                showOutboundBtn.classList.add('bg-gray-200', 'text-gray-700');
+                showOutboundBtn.classList.remove('bg-[#a56a44]', 'text-white');
+            });
+
+            showOutboundBtn.addEventListener('click', () => {
+                outboundFlow.classList.remove('hidden');
+                inboundFlow.classList.add('hidden');
+                showOutboundBtn.classList.add('bg-[#a56a44]', 'text-white');
+                showOutboundBtn.classList.remove('bg-gray-200', 'text-gray-700');
+                showInboundBtn.classList.add('bg-gray-200', 'text-gray-700');
+                showInboundBtn.classList.remove('bg-[#a56a44]', 'text-white');
+            });
+            
+            const discrepancyData = {
+                labels: ['PO vs. Receipt', 'Receipt vs. WMS Reg.', 'SO vs. Picked', 'Picked vs. Packed', 'Packed vs. Shipped'],
+                datasets: [
+                    {
+                        label: 'Expected Quantity',
+                        data: [1000, 995, 50, 50, 49],
+                        backgroundColor: 'rgba(196, 181, 168, 0.6)',
+                        borderColor: 'rgba(196, 181, 168, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                    },
+                    {
+                        label: 'Actual Quantity',
+                        data: [995, 990, 50, 49, 49],
+                        backgroundColor: 'rgba(165, 106, 68, 0.7)',
+                        borderColor: 'rgba(165, 106, 68, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                    }
+                ]
+            };
+
+            const discrepancyCtx = document.getElementById('discrepancyChart').getContext('2d');
+            new Chart(discrepancyCtx, {
+                type: 'bar',
+                data: discrepancyData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: '#f0f0f0'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Expected vs. Actual Quantities at Key Stages',
+                            font: { size: 16 }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y + ' units';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            const accuracyData = {
+                labels: ['Goods Receipt', 'Put-Away', 'Picking', 'Packing', 'Shipping'],
+                datasets: [{
+                    label: 'Accuracy %',
+                    data: [99.5, 99.5, 97.2, 98.0, 100],
+                    backgroundColor: [
+                        'rgba(140, 90, 59, 0.2)',
+                        'rgba(140, 90, 59, 0.4)',
+                        'rgba(140, 90, 59, 0.6)',
+                        'rgba(140, 90, 59, 0.8)',
+                        'rgba(140, 90, 59, 1.0)',
+                    ],
+                    borderColor: 'rgba(140, 90, 59, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                }]
+            };
+
+            const accuracyCtx = document.getElementById('accuracyByStageChart').getContext('2d');
+            new Chart(accuracyCtx, {
+                type: 'bar',
+                data: accuracyData,
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            beginAtZero: false,
+                            min: 90,
+                            max: 100,
+                             grid: {
+                                color: '#f0f0f0'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value + "%"
+                                }
+                            }
+                        },
+                        y: {
+                             grid: {
+                                display: false
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                         tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ' ' + context.parsed.x + '% Accuracy';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            const navLinks = document.querySelectorAll('.nav-link');
+            const sections = document.querySelectorAll('main section');
+
+            window.addEventListener('scroll', () => {
+                let current = '';
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    if (pageYOffset >= sectionTop - 120) {
+                        current = section.getAttribute('id');
+                    }
+                });
+
+                navLinks.forEach(link => {
+                    link.classList.remove('active', 'text-[#a56a44]', 'border-[#a56a44]');
+                    if (link.getAttribute('href').includes(current)) {
+                        link.classList.add('active', 'text-[#a56a44]', 'border-[#a56a44]');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
